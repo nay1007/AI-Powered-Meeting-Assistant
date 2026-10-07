@@ -1,0 +1,6 @@
+streamlit
+groq
+google-genai
+python-dotenv
+pytest
+imageio-ffmpeg
