@@ -45,10 +45,6 @@ def negations_in(text: str) -> Counter:
     return found
 
 
-def word_count(text: str) -> int:
-    return len(text.split())
-
-
 def sentence_count(text: str) -> int:
     return max(1, len(re.findall(r"[.!?]+(?:\s|$)", text)))
 

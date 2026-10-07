@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from .audio_tools import probe
 from .errors import PipelineError
 
-ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".webm", ".aac"}
+ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".mp4", ".flac", ".ogg", ".webm", ".aac", ".mpeg"}
 MIN_SECONDS = 1.0
 SILENCE_DB = -50.0  # loudest point quieter than this => treated as silence
 

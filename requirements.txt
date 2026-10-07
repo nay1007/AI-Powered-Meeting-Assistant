@@ -1,6 +1,7 @@
 streamlit
 groq
-google-genai
+faster-whisper
 python-dotenv
 pytest
 imageio-ffmpeg
+av<19

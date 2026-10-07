@@ -7,6 +7,7 @@ wrong and asked again (up to MAX_ATTEMPTS). If it still fails, that chunk keeps
 the original raw text, so a bad answer can never reach the final record.
 """
 import difflib
+import html
 import os
 import re
 import time
@@ -33,11 +34,6 @@ class ChunkReport:
 class RefineResult:
     refined: str
     chunks: list[ChunkReport]
-
-    @property
-    def fell_back(self) -> bool:
-        return any(c.status == "fell_back_to_raw" for c in self.chunks)
-
 
 def load_prompt() -> str:
     with open(PROMPT_PATH, encoding="utf-8") as f:
@@ -134,14 +130,22 @@ def word_changes(raw: str, refined: str) -> list[tuple[str, str, str]]:
     return out
 
 
-def highlighted(raw: str, refined: str) -> str:
-    """Markdown text of the refined transcript with ~~old~~ **new** at each change."""
+def highlighted_html(raw: str, refined: str) -> str:
+    """The refined transcript as HTML, with each corrected spot marked in place.
+
+    A corrected word is highlighted and underlined; hovering shows the original
+    wording. Text is HTML-escaped, so transcript content can never inject markup.
+    """
     a, b = raw.split(), refined.split()
+    style = "background:#fff3a3;color:#000;border-radius:3px;padding:0 3px;text-decoration:underline dotted"
     out = []
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
         if tag == "equal":
-            out += a[i1:i2]
-        else:
-            old, new = " ".join(a[i1:i2]), " ".join(b[j1:j2])
-            out.append((f"~~{old}~~ " if old else "") + (f"**{new}**" if new else ""))
+            out += [html.escape(w) for w in b[j1:j2]]
+            continue
+        old, new = " ".join(a[i1:i2]), " ".join(b[j1:j2])
+        shown = html.escape(new) if new else "[removed]"
+        tip = html.escape(f"Original: {old}" if old else "Added by the refiner", quote=True)
+        out.append(f'<mark style="{style}" title="{tip}">{shown}</mark>')
     return " ".join(out)
+

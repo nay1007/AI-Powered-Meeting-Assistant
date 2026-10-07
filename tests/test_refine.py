@@ -39,7 +39,7 @@ def test_good_fix_passes_first_time():
     client = FakeGroq([fixed])
     res = R.refine(RAW, client=client)
     assert res.refined == fixed
-    assert res.chunks[0].status == "ok" and not res.fell_back
+    assert res.chunks[0].status == "ok"
 
 
 def test_changed_number_is_caught_and_retried_with_reason():
@@ -62,7 +62,7 @@ def test_three_failures_fall_back_to_raw():
     bad = "We will deploy on Kubernetes by 50 March. We do not need a rollback plan."
     client = FakeGroq([bad, bad, bad])
     res = R.refine(RAW, client=client)
-    assert res.refined == RAW and res.fell_back
+    assert res.refined == RAW and res.chunks[0].status == "fell_back_to_raw"
     assert res.chunks[0].problems
 
 
@@ -84,8 +84,9 @@ def test_number_words_and_contractions_are_counted():
 
 
 def test_highlighting_marks_changes():
-    out = R.highlighted("deploy on cooper net ease now", "deploy on Kubernetes now")
-    assert "~~cooper net ease~~ **Kubernetes**" in out
+    out = R.highlighted_html("deploy on cooper net ease now", "deploy on Kubernetes now")
+    assert 'title="Original: cooper net ease"' in out and ">Kubernetes</mark>" in out
+
 
 
 def test_chunking_keeps_all_sentences():

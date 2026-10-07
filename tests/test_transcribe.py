@@ -1,78 +1,74 @@
 import pytest
 
+from pipeline import transcribe as T
 from pipeline.errors import PipelineError
 from pipeline.transcribe import transcribe
 from tests.test_validate import make_wav
 
 
-class FakeClient:
-    """Stands in for Groq so tests need no internet or key."""
-
-    def __init__(self, replies):
-        self.replies = list(replies)
-        self.calls = 0
-        self.audio = self
-        self.transcriptions = self
-
-    def create(self, **kwargs):
-        assert kwargs["model"] == "whisper-large-v3"
-        assert kwargs["language"] == "en"
-        self.calls += 1
-        reply = self.replies.pop(0)
-        if isinstance(reply, Exception):
-            raise reply
-        return reply
+class Seg:
+    def __init__(self, text):
+        self.text = text
 
 
-def test_cut_uses_longest_pause_in_window():
-    from pipeline.transcribe import choose_cuts
-    silences = [(590.0, 590.5), (605.0, 607.0), (700.0, 702.0)]  # 700 is outside +/-30 s
-    cuts = choose_cuts(1500, silences)
-    assert cuts[0] == (606.0, False)    # middle of the 2 s pause near 600
+class FakeModel:
+    """Stands in for the local Whisper model so tests need no model download."""
+
+    def __init__(self, segments=None, error=None):
+        self.segments = segments or []
+        self.error = error
+        self.kwargs = None
+        self.seen_file = None
+
+    def transcribe(self, audio, **kwargs):
+        self.seen_file = audio
+        self.kwargs = kwargs
+        if self.error:
+            raise self.error
+        return iter(self.segments), None
 
 
-def test_no_pause_cuts_at_target_with_overlap():
-    from pipeline.transcribe import choose_cuts
-    assert choose_cuts(1500, []) == [(600.0, True), (1200.0, True)]
-
-
-def test_short_recording_is_one_file(tmp_path):
-    from pipeline.transcribe import split_audio
+def wav(tmp_path):
     p = tmp_path / "a.wav"
     make_wav(p, seconds=2)
-    files, flags = split_audio(str(p), str(tmp_path))
-    assert len(files) == 1 and flags == []
+    return str(p)
 
 
-def test_merge_removes_overlap_only_when_flagged():
-    from pipeline.transcribe import merge_transcripts
-    a = "we agreed to ship on the fifteenth of march and then"
-    b = "of March and then review the budget"
-    assert merge_transcripts([a, b], [True]) == (
-        "we agreed to ship on the fifteenth of march and then review the budget")
-    # clean silence cut: nothing is removed even if words repeat
-    assert merge_transcripts(["go on and on", "on and on again"], [False]) == "go on and on on and on again"
+def test_segments_are_joined_into_one_transcript(tmp_path):
+    model = FakeModel([Seg(" hello team."), Seg(" we ship on Friday. ")])
+    assert transcribe(wav(tmp_path), model=model) == "hello team. we ship on Friday."
 
 
-def test_joins_chunks_and_returns_text(tmp_path):
-    p = tmp_path / "a.wav"
-    make_wav(p, seconds=2)
-    client = FakeClient(["hello team"])
-    assert transcribe(str(p), client=client) == "hello team"
+def test_model_is_asked_for_english_and_converted_flac(tmp_path):
+    model = FakeModel([Seg("hi")])
+    transcribe(wav(tmp_path), model=model)
+    assert model.kwargs["language"] == "en"
+    assert model.seen_file.endswith(".flac")
 
 
 def test_empty_result_gives_clear_error(tmp_path):
-    p = tmp_path / "a.wav"
-    make_wav(p, seconds=2)
     with pytest.raises(PipelineError, match="No speech"):
-        transcribe(str(p), client=FakeClient(["   "]))
+        transcribe(wav(tmp_path), model=FakeModel([Seg("   ")]))
 
 
-def test_api_failure_gives_clear_error(tmp_path, monkeypatch):
-    monkeypatch.setattr("pipeline.transcribe.time.sleep", lambda s: None)
-    p = tmp_path / "a.wav"
-    make_wav(p, seconds=2)
-    client = FakeClient([RuntimeError("boom")] * 3)
-    with pytest.raises(PipelineError, match="failed after 3 tries"):
-        transcribe(str(p), client=client)
-    assert client.calls == 3
+def test_model_failure_gives_clear_error(tmp_path):
+    with pytest.raises(PipelineError, match="Speech-to-text failed: boom"):
+        transcribe(wav(tmp_path), model=FakeModel(error=RuntimeError("boom")))
+
+
+def test_unconvertible_audio_gives_clear_error(tmp_path):
+    bad = tmp_path / "bad.wav"
+    bad.write_bytes(b"not audio at all")
+    with pytest.raises(PipelineError, match="could not be converted"):
+        transcribe(str(bad), model=FakeModel([Seg("x")]))
+
+
+def test_model_load_failure_gives_clear_error(monkeypatch):
+    import faster_whisper
+
+    def boom(*a, **k):
+        raise OSError("offline")
+    monkeypatch.setattr(T, "_model", None)
+    monkeypatch.setattr(faster_whisper, "WhisperModel", boom)
+    with pytest.raises(PipelineError, match="could not be loaded"):
+        T.load_model()

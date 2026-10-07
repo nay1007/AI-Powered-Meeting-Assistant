@@ -6,3 +6,4 @@ outputs/*
 !outputs/.gitkeep
 .claude/
 *.swp
+.pytest_cache/
