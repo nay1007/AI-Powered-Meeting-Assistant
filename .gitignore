@@ -2,8 +2,8 @@
 __pycache__/
 *.pyc
 .venv/
-outputs/*
-!outputs/.gitkeep
+outputs/
 .claude/
 *.swp
 .pytest_cache/
+tests/

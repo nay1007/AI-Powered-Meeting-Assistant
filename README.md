@@ -11,6 +11,8 @@ Upload a recording of an English meeting and get back a raw transcript, a refine
 | 2 | **LLM #1**: fix misheard technical terms (refined transcript) | `openai/gpt-oss-120b` | Groq API (free tier) |
 | 3 | **LLM #2**: summary, minutes, decisions, action items | `qwen/qwen3.8-27b` | Groq API (free tier) |
 
+###### NOTE : large-v3 is around a 3 GB model and required a dedicated GPU for fast computation of transcripts. If running on CPU, large files will take long time.
+
 The two language models are different models from different makers, called in separate stages with separate prompts. Stage 3 never sees the raw transcript or the stage 2 prompt.
 
 ## How it works
@@ -132,11 +134,6 @@ Open http://localhost:8501, upload a recording, click **Process recording**, the
 .venv/Scripts/python -m scripts.run_pipeline samples/test_meeting.wav
 ```
 
-**Tests** (use fake models: no key or internet needed)
-
-```bash
-.venv/Scripts/python -m pytest -q
-```
 
 ## Project structure
 
@@ -158,13 +155,9 @@ prompts/
   refine_prompt.txt         instructions for LLM #1
   minutes_prompt.txt        instructions for LLM #2
 scripts/run_pipeline.py     command-line entry point
-tests/                      automated tests with fake models
 samples/                    sample recording
 ```
 
-## Privacy
-
-The audio is transcribed on your computer and is never uploaded. The transcript text is sent to Groq (free tier), which may use submitted data to improve its products. Do not process confidential meetings with these keys.
 
 ## Known limitations
 
